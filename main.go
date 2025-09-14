@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -50,6 +51,8 @@ type model struct {
 	error         string
 	width         int
 	height        int
+	scrollOffset  int
+	maxScroll     int
 }
 
 func initialModel() model {
@@ -63,11 +66,13 @@ func initialModel() model {
 	s.Spinner = spinner.Dot
 
 	return model{
-		state:      StateSelectFile,
-		filepicker: fp,
-		spinner:    s,
-		width:      80,
-		height:     24,
+		state:        StateSelectFile,
+		filepicker:   fp,
+		spinner:      s,
+		width:        80,
+		height:       24,
+		scrollOffset: 0,
+		maxScroll:    0,
 	}
 }
 
@@ -81,6 +86,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "up", "k":
+			if m.state == StateComplete && m.transcription != "" {
+				if m.scrollOffset > 0 {
+					m.scrollOffset--
+				}
+			}
+		case "down", "j":
+			if m.state == StateComplete && m.transcription != "" {
+				if m.scrollOffset < m.maxScroll {
+					m.scrollOffset++
+				}
+			}
+		case "home":
+			if m.state == StateComplete && m.transcription != "" {
+				m.scrollOffset = 0
+			}
+		case "end":
+			if m.state == StateComplete && m.transcription != "" {
+				m.scrollOffset = m.maxScroll
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -93,6 +118,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case processCompleteMsg:
 		m.state = StateComplete
 		m.transcription = string(msg)
+		m.scrollOffset = 0
+
+		// Calculate max scroll based on transcription length and available space
+		transcriptionHeight := m.height - 10 // Leave space for title and instructions
+		if transcriptionHeight < 5 {
+			transcriptionHeight = 5
+		}
+
+		// Wrap text and count lines
+		wrappedText := m.wrapText(m.transcription, m.width-8) // Account for padding and border
+		totalLines := len(strings.Split(wrappedText, "\n"))
+
+		if totalLines > transcriptionHeight {
+			m.maxScroll = totalLines - transcriptionHeight
+		} else {
+			m.maxScroll = 0
+		}
+
 		return m, nil
 
 	case processErrorMsg:
@@ -152,15 +195,113 @@ func (m model) View() string {
 				errorStyle.Render("Error occurred:"),
 				errorStyle.Render(m.error))
 		} else {
+			scrollInstructions := ""
+			if m.maxScroll > 0 {
+				scrollInstructions = subtitleStyle.Render(fmt.Sprintf("Use ↑/↓ or j/k to scroll • Line %d-%d of %d • Press 'q' to exit",
+					m.scrollOffset+1,
+					min(m.scrollOffset+(m.height-10), len(strings.Split(m.wrapText(m.transcription, m.width-8), "\n"))),
+					len(strings.Split(m.wrapText(m.transcription, m.width-8), "\n"))))
+			} else {
+				scrollInstructions = subtitleStyle.Render("Press 'q' to exit")
+			}
+
 			content = fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s",
 				titleStyle.Render("Speech-to-Text CLI"),
 				successStyle.Render("Transcription completed"),
-				transcriptionStyle.Render(m.transcription),
-				subtitleStyle.Render("Press 'q' to exit"))
+				m.renderScrollableTranscription(),
+				scrollInstructions)
 		}
 	}
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+}
+
+// wrapText wraps text to fit within the specified width
+func (m model) wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return text
+	}
+
+	var lines []string
+	var currentLine string
+
+	for _, word := range words {
+		testLine := currentLine
+		if testLine != "" {
+			testLine += " "
+		}
+		testLine += word
+
+		if len(testLine) <= width {
+			currentLine = testLine
+		} else {
+			if currentLine != "" {
+				lines = append(lines, currentLine)
+			}
+			currentLine = word
+		}
+	}
+
+	if currentLine != "" {
+		lines = append(lines, currentLine)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// renderScrollableTranscription renders the transcription with scrolling
+func (m model) renderScrollableTranscription() string {
+	transcriptionHeight := m.height - 10 // Leave space for title and instructions
+	if transcriptionHeight < 5 {
+		transcriptionHeight = 5
+	}
+
+	// Wrap text to fit the display width
+	wrappedText := m.wrapText(m.transcription, m.width-8) // Account for padding and border
+	lines := strings.Split(wrappedText, "\n")
+
+	// Extract visible lines based on scroll offset
+	startLine := m.scrollOffset
+	endLine := min(startLine+transcriptionHeight, len(lines))
+
+	if startLine >= len(lines) {
+		startLine = max(0, len(lines)-transcriptionHeight)
+		endLine = len(lines)
+	}
+
+	visibleText := strings.Join(lines[startLine:endLine], "\n")
+
+	// Pad with empty lines if needed to maintain consistent height
+	visibleLines := strings.Split(visibleText, "\n")
+	for len(visibleLines) < transcriptionHeight {
+		visibleLines = append(visibleLines, "")
+	}
+	visibleText = strings.Join(visibleLines, "\n")
+
+	return transcriptionStyle.
+		Width(m.width - 4).
+		Height(transcriptionHeight + 2). // +2 for padding
+		Render(visibleText)
+}
+
+// Helper functions
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 type processCompleteMsg string
