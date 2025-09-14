@@ -1,5 +1,11 @@
 # Speech-to-Text CLI
 
+
+
+https://github.com/user-attachments/assets/0d85a9d7-14c3-4a91-ba8a-6d235c11fadc
+
+
+
 A terminal-based application for transcribing audio from video and audio files using OpenAI's Whisper model locally.
 
 ## Features
