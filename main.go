@@ -86,6 +86,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "enter":
+			// Handle Enter key press when in complete state
+			if m.state == StateComplete {
+				// Reset the model to initial state for new file selection
+				m.state = StateSelectFile
+				m.selectedFile = ""
+				m.transcription = ""
+				m.error = ""
+				m.scrollOffset = 0
+				m.maxScroll = 0
+
+				// Reinitialize the filepicker
+				fp := filepicker.New()
+				fp.AllowedTypes = []string{".mp4", ".avi", ".mov", ".mkv", ".webm", ".mp3", ".wav", ".m4a", ".flac"}
+				fp.CurrentDirectory, _ = os.Getwd()
+				fp.Height = m.height - 4
+				m.filepicker = fp
+
+				return m, m.filepicker.Init()
+			}
 		case "up", "k":
 			if m.state == StateComplete && m.transcription != "" {
 				if m.scrollOffset > 0 {
@@ -197,12 +217,12 @@ func (m model) View() string {
 		} else {
 			scrollInstructions := ""
 			if m.maxScroll > 0 {
-				scrollInstructions = subtitleStyle.Render(fmt.Sprintf("Use ↑/↓ or j/k to scroll • Line %d-%d of %d • Press 'q' to exit",
+				scrollInstructions = subtitleStyle.Render(fmt.Sprintf("Use ↑/↓ or j/k to scroll • Line %d-%d of %d • Press Enter for another file • Press 'q' to exit",
 					m.scrollOffset+1,
 					min(m.scrollOffset+(m.height-10), len(strings.Split(m.wrapText(m.transcription, m.width-8), "\n"))),
 					len(strings.Split(m.wrapText(m.transcription, m.width-8), "\n"))))
 			} else {
-				scrollInstructions = subtitleStyle.Render("Press 'q' to exit")
+				scrollInstructions = subtitleStyle.Render("Press Enter for another file • Press 'q' to exit")
 			}
 
 			content = fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s",
