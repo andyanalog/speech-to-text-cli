@@ -195,7 +195,7 @@ func (m model) View() string {
 
 	switch m.state {
 	case StateSelectFile:
-		content = fmt.Sprintf("%s\n\n%s\n\n%s",
+		content = fmt.Sprintf("%s\n\n%s\n%s\n\n%s",
 			titleStyle.Render("Speech-to-Text CLI"),
 			subtitleStyle.Render("Select a video or audio file to transcribe:"),
 			m.filepicker.View())
