@@ -49,9 +49,9 @@ cd speech-to-text-cli
 go mod tidy
 ```
 
-3. **Build the application:**
+3. **Build the application (Windows):**
 ```bash
-go build -o stt-cli
+go build -o stt-cli.exe .
 ```
 
 ## Usage
