@@ -40,7 +40,7 @@ sudo apt install ffmpeg
 
 1. **Clone the repository:**
 ```bash
-git clone <repository-url>
+git clone https://github.com/andyanalog/speech-to-text-cli.git
 cd speech-to-text-cli
 ```
 
