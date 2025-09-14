@@ -1,0 +1,4 @@
+*.mp4
+go.mod
+go.sum
+venv
